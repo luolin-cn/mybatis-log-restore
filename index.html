@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MyBatis日志恢复</title>
+    <meta charset="UTF-8">
+    <!-- import CSS -->
+    <link rel="Shortcut Icon" href="./image/icon.png" type="image/x-icon"/>
+    <link rel="stylesheet" href="css/index.css">
+    <link rel="styleSheet" href="css/base.css"/>
+</head>
+<body>
+<span>
+ 
+ <h3>MyBatis Log Restore</h3>
+  </span>
+
+
+<div id="app" class="demo-input-suffix" style="height: 100%">
+
+    <div>
+        <el-input
+                type="textarea"
+                :rows="15"
+                placeholder="在此输入MyBatis日志..."
+                v-model="inStr" style="padding:0px;width:98%;height:30%;font-size:14px;font-family:'微软雅黑'"
+                @keyup.native="start"
+        >
+        </el-input>
+
+        <div id="dragEle" style="height:10px;"></div>
+        <div
+                placeholder="解析后的结果"
+                v-html="outStr" class="out_div"></div>
+    </div>
+
+</div>
+</body>
+<!-- import Vue before Element -->
+<script src="js/vue.js"></script>
+<!-- import JavaScript -->
+<script src="js/index.js"></script>
+<script>
+    new Vue({
+        el: '#app',
+        data: function () {
+            return {
+                inStr: '',
+                outStr: '',
+            }
+        },
+        methods: {
+            start: function () {
+                var content = this.inStr;
+                var result = '';
+                if (content != '') {
+                    result = RestoreSqlUtil.start(content)
+                    this.outStr = result
+                } else {
+                    this.outStr = ''
+                }
+            }
+        }
+    })
+</script>
+
+
+<script type="text/javascript">
+
+    /**
+     * restore the mybatis generate sql to original whole sql
+     * @author ob
+     * @class
+     */
+    var RestoreSqlUtil = (function () {
+        function RestoreSqlUtil() {
+        }
+
+        RestoreSqlUtil.__static_initialize = function () {
+            if (!RestoreSqlUtil.__static_initialized) {
+                RestoreSqlUtil.__static_initialized = true;
+                RestoreSqlUtil.__static_initializer_0();
+            }
+        };
+        RestoreSqlUtil.needAssembledType_$LI$ = function () {
+            RestoreSqlUtil.__static_initialize();
+            if (RestoreSqlUtil.needAssembledType == null)
+                RestoreSqlUtil.needAssembledType = ([]);
+            return RestoreSqlUtil.needAssembledType;
+        };
+        ;
+        RestoreSqlUtil.__static_initializer_0 = function () {
+            /* add */
+            (function (s, e) {
+                if (s.indexOf(e) == -1) {
+                    s.push(e);
+                    return true;
+                } else {
+                    return false;
+                }
+            })(RestoreSqlUtil.needAssembledType_$LI$(), "(String)");
+            /* add */
+            (function (s, e) {
+                if (s.indexOf(e) == -1) {
+                    s.push(e);
+                    return true;
+                } else {
+                    return false;
+                }
+            })(RestoreSqlUtil.needAssembledType_$LI$(), "(Timestamp)");
+            /* add */
+            (function (s, e) {
+                if (s.indexOf(e) == -1) {
+                    s.push(e);
+                    return true;
+                } else {
+                    return false;
+                }
+            })(RestoreSqlUtil.needAssembledType_$LI$(), "(Date)");
+            /* add */
+            (function (s, e) {
+                if (s.indexOf(e) == -1) {
+                    s.push(e);
+                    return true;
+                } else {
+                    return false;
+                }
+            })(RestoreSqlUtil.needAssembledType_$LI$(), "(Time)");
+        };
+        RestoreSqlUtil.start = function (str) {
+            var result = "";
+            RestoreSqlUtil.indexNum = 1;
+            str.trim().split('\n').forEach(function (s) {
+                // 过滤保留sql并进行优化
+                s1 = RestoreSqlUtil.applyFilter(s);
+
+                if (RestoreSqlUtil.isNotBlank(s1)) {
+                    result += s1;
+                    result += RestoreSqlUtil.SPLIT_LINE;
+                }
+            })
+            return result;
+        };
+        RestoreSqlUtil.match = function (p, str) {
+            var group = str.match(p)
+            return group[0];
+        };
+        RestoreSqlUtil.applyFilter = function (currentLine) {
+
+            if ((currentLine.indexOf(RestoreSqlUtil.PREPARING) != -1)) {
+                RestoreSqlUtil.preparingLine = currentLine;
+                return null;
+            }
+            if (RestoreSqlUtil.isEmpty(RestoreSqlUtil.preparingLine)) {
+                return null;
+            }
+            RestoreSqlUtil.parametersLine = (currentLine.indexOf(RestoreSqlUtil.PARAMETERS) != -1) ? currentLine : RestoreSqlUtil.parametersLine + currentLine;
+
+            if (!RestoreSqlUtil.parametersLine.endsWith("Parameters: ") && !RestoreSqlUtil.parametersLine.endsWith("null") && !RestoreSqlUtil.parametersLine.endsWith(")")) {
+                return null;
+            } else {
+                RestoreSqlUtil.isEnd = true;
+            }
+            if (RestoreSqlUtil.isNotEmpty(RestoreSqlUtil.preparingLine) && RestoreSqlUtil.isNotEmpty(RestoreSqlUtil.parametersLine) && RestoreSqlUtil.isEnd) {
+                var preStr = "<span style='color: #f1592a' >--  " + RestoreSqlUtil.indexNum++ + "  " + RestoreSqlUtil.parametersLine.split(RestoreSqlUtil.PARAMETERS)[0].trim() + "</span><p/>";
+                var restoreSql = RestoreSqlUtil.restoreSql(RestoreSqlUtil.preparingLine, RestoreSqlUtil.parametersLine);
+                return preStr + "\n" + restoreSql;
+            }
+            return null;
+        };
+        RestoreSqlUtil.restoreSql = function (preparing, parameters) {
+            var restoreSql = "";
+            var preparingSql = "";
+            var parametersSql = "";
+            console.log("restoreSql start")
+            try {
+                if ((preparing.indexOf(RestoreSqlUtil.PREPARING) != -1)) {
+                    preparingSql = preparing.split(RestoreSqlUtil.PREPARING)[1].trim();
+                } else {
+                    preparingSql = preparing;
+                }
+                var hasParam = false;
+                if ((parameters.indexOf(RestoreSqlUtil.PARAMETERS) != -1)) {
+                    if (parameters.split(RestoreSqlUtil.PARAMETERS).length > 1) {
+                        parametersSql = parameters.split(RestoreSqlUtil.PARAMETERS)[1];
+                        if (RestoreSqlUtil.isNotBlank(parametersSql)) {
+                            hasParam = true;
+                        }
+                    }
+                } else {
+                    parametersSql = parameters;
+                }
+                if (hasParam) {
+                    preparingSql = RestoreSqlUtil.replace(preparingSql, RestoreSqlUtil.QUESTION_MARK, RestoreSqlUtil.REPLACE_MARK);
+                    preparingSql = RestoreSqlUtil.removeEnd(preparingSql, "\n");
+                    parametersSql = RestoreSqlUtil.removeEnd(parametersSql, "\n");
+                    var questionMarkCount = RestoreSqlUtil.countMatches(preparingSql, RestoreSqlUtil.REPLACE_MARK);
+                    var paramArray = parametersSql.split(RestoreSqlUtil.PARAM_TYPE_REGEX);
+                    for (var i = 0; i < paramArray.length; ++i) {
+                        if (questionMarkCount <= paramArray.length || parametersSql.indexOf("null") === -1) {
+                            break;
+                        } else {
+                            parametersSql = parametersSql.split("null").join("null(Null)");
+                        }
+                        paramArray = parametersSql.split(RestoreSqlUtil.PARAM_TYPE_REGEX);
+                    }
+                    console.log("paramArray:"+paramArray)
+                    for (var i = 0; i < paramArray.length; ++i) {
+                        {
+                            paramArray[i] = RestoreSqlUtil.removeStart(paramArray[i], " ");
+                            var nullFlag = paramArray[i] === 'null';
+                            console.log("nullFlag:"+nullFlag)
+                            parametersSql = RestoreSqlUtil.replaceOnce(RestoreSqlUtil.removeStart(parametersSql, " "), paramArray[i], "");
+                            console.log("parametersSql:"+parametersSql)
+                            var paramType = " ";
+                            preparingSql = RestoreSqlUtil.replaceOnce(preparingSql, RestoreSqlUtil.REPLACE_MARK, RestoreSqlUtil.assembledParamValue(paramArray[i], paramType, nullFlag));
+                            paramType = paramType.split("(").join("\\(").split(")").join("\\)") + ", ";
+                            parametersSql = parametersSql.split(paramType).join("");
+                        }
+                        ;
+                    }
+                }
+                restoreSql = RestoreSqlUtil.simpleFormat(preparingSql);
+                if (!(function (str, searchString) {
+                    var pos = str.length - searchString.length;
+                    var lastIndex = str.indexOf(searchString, pos);
+                    return lastIndex !== -1 && lastIndex === pos;
+                })(restoreSql, ";")) {
+                    restoreSql += ";";
+                }
+            } catch (e) {
+                console.log(e)
+                return "restore mybatis sql error!";
+            }
+            ;
+            return restoreSql;
+        };
+        RestoreSqlUtil.assembledParamValue = function (paramValue, paramType, nullFlag) {
+            if ((RestoreSqlUtil.needAssembledType_$LI$().indexOf((paramType)) >= 0)) {
+                paramValue = "\'" + paramValue + "\'";
+            }
+            if(!nullFlag){
+                paramValue = "\'" + paramValue + "\'";
+            }
+            return paramValue;
+        };
+        RestoreSqlUtil.simpleFormat = function (sql) {
+            var result = "";
+            if (RestoreSqlUtil.isNotBlank(sql)) {
+                result = sql.replace(/\s?update\s+/gi, "<br/><span class='keyword' >UPDATE </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?select\s+/gi, "<span class='keyword' >SELECT </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?insert into\s+/gi, "<br/><span class='keyword' >INSERT INTO </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?delete from\s+/gi, "<br/><span class='keyword' >DELETE FROM</span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?from\s+/gi, "<br/><span class='keyword' >FROM </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?where\s+/gi, "<br/><span class='keyword' >WHERE </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?left join\s+/gi, "<br/><span class='keyword' >LEFT JOIN </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?right join\s+/gi, "<br/><span class='keyword' > RIGHT JOIN </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?inner join\s+/gi, "<br/><span class='keyword' > INNER JOIN </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?limit\s+/gi, "<br/>&nbsp;&nbsp;&nbsp;<span class='keyword' > LIMIT </span>&nbsp;")
+                    .replace(/\s+on\s+/gi, "<span class='keyword' > ON </span>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?union\s+/gi, "<br/><span class='keyword' > UNION </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?set\s+/gi, "<br/><span class='keyword' >SET </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?and\s+/gi, "<br/>&nbsp;&nbsp;&nbsp;&nbsp;<span class='keyword' >AND </span>&nbsp;")
+                    .replace(/\s?as\s+/gi, "&nbsp;&nbsp;<span class='keyword' > AS </span>&nbsp;&nbsp;")
+                    .replace(/\s?values\s+/gi, "<br/><span class='keyword' > VALUES </span><br/>&nbsp;&nbsp;&nbsp;&nbsp;")
+                    .replace(/\s?between\s+/gi, "<span class='keyword' > BETWEEN </span>")
+                    .replace(/\s?;\s+/gi, ";<br/>");
+
+                if (result.match(/SELECT(.*)FROM/sg) != null) {
+                    result = result.replace(/SELECT(.*)FROM/sg, result.match(/SELECT(.*)FROM/sg)[0].replace(/, /g, ",<br/>&nbsp;&nbsp;&nbsp;&nbsp;"))
+                }
+                if (result.match(/SET(.*)WHERE/sg) != null) {
+                    result = result.replace(/SET(.*)WHERE/sg, result.match(/SET(.*)WHERE/sg)[0].replace(/, /g, ",<br/>&nbsp;&nbsp;&nbsp;&nbsp;"))
+                }
+            }
+            return result;
+        };
+        RestoreSqlUtil.isEmpty = function (str) {
+            return str == null || str.length === 0;
+        };
+        RestoreSqlUtil.isNotEmpty = function (str) {
+            return !RestoreSqlUtil.isEmpty(str);
+        };
+        RestoreSqlUtil.isBlank = function (str) {
+            if (typeof str == "undefined" || str == null || str == "") {
+                return true;
+            } else {
+                return false;
+            }
+            var strLen;
+            if (str != null && (strLen = str.length) !== 0) {
+                return true;
+            } else {
+                return true;
+            }
+        };
+        RestoreSqlUtil.isNotBlank = function (str) {
+            return !RestoreSqlUtil.isBlank(str);
+        };
+        RestoreSqlUtil.countMatches = function (str, sub) {
+            if (!RestoreSqlUtil.isEmpty(str) && !RestoreSqlUtil.isEmpty(sub)) {
+                var count = 0;
+                for (var idx = 0; (idx = str.indexOf(sub, idx)) !== -1; idx += sub.length) {
+                    {
+                        ++count;
+                    }
+                    ;
+                }
+                return count;
+            } else {
+                return 0;
+            }
+        };
+        RestoreSqlUtil.removeEnd = function (str, remove) {
+            if (!RestoreSqlUtil.isEmpty(str) && !RestoreSqlUtil.isEmpty(remove)) {
+                return (function (str, searchString) {
+                    var pos = str.length - searchString.length;
+                    var lastIndex = str.indexOf(searchString, pos);
+                    return lastIndex !== -1 && lastIndex === pos;
+                })(str, remove) ? str.substring(0, str.length - remove.length) : str;
+            } else {
+                return str;
+            }
+        };
+        RestoreSqlUtil.replaceOnce = function (text, searchString, replacement) {
+            return RestoreSqlUtil.replace(text, searchString, replacement, 1);
+        };
+        RestoreSqlUtil.replace = function (text, searchString, replacement, max) {
+            if (max === void 0) {
+                max = -1;
+            }
+            if (!RestoreSqlUtil.isEmpty(text) && !RestoreSqlUtil.isEmpty(searchString) && replacement != null && max !== 0) {
+                var start_1 = 0;
+                var end_1 = text.indexOf(searchString, start_1);
+                if (end_1 === -1) {
+                    return text;
+                } else {
+                    var replLength = searchString.length;
+                    var increase = replacement.length - replLength;
+                    increase = increase < 0 ? 0 : increase;
+                    increase *= max < 0 ? 16 : (max > 64 ? 64 : max);
+                    var buf = void 0;
+                    for (buf = {
+                        str: "", toString: function () {
+                            return this.str;
+                        }
+                    }; end_1 !== -1; end_1 = text.indexOf(searchString, start_1)) {
+                        {
+                            /* append */
+                            (function (sb) {
+                                sb.str = sb.str.concat(replacement);
+                                return sb;
+                            })(/* append */ (function (sb) {
+                                sb.str = sb.str.concat(text.substring(start_1, end_1));
+                                return sb;
+                            })(buf));
+                            start_1 = end_1 + replLength;
+                            --max;
+                            if (max === 0) {
+                                break;
+                            }
+                        }
+                        ;
+                    }
+                    /* append */
+                    (function (sb) {
+                        sb.str = sb.str.concat(text.substring(start_1));
+                        return sb;
+                    })(buf);
+                    return buf.str;
+                }
+            } else {
+                return text;
+            }
+        };
+        RestoreSqlUtil.removeStart = function (str, remove) {
+            if (!RestoreSqlUtil.isEmpty(str) && !RestoreSqlUtil.isEmpty(remove)) {
+                return (function (str, searchString, position) {
+                    if (position === void 0) {
+                        position = 0;
+                    }
+                    return str.substr(position, searchString.length) === searchString;
+                })(str, remove) ? str.substring(remove.length) : str;
+            } else {
+                return str;
+            }
+        };
+        return RestoreSqlUtil;
+    }());
+    RestoreSqlUtil.__static_initialized = false;
+    RestoreSqlUtil.PREPARING = "Preparing:";
+    RestoreSqlUtil.PARAMETERS = "Parameters:";
+    RestoreSqlUtil.SPLIT_LINE = "<p/><span style='color: #f1592a' >-- ---------------------------------------------------------------------------------------------------------------------</span><p/>";
+    RestoreSqlUtil.QUESTION_MARK = "?";
+    RestoreSqlUtil.REPLACE_MARK = "_o_?_b_";
+    RestoreSqlUtil.PARAM_TYPE_REGEX = /\(\D{3,30}?\),{0,1}/g;
+    RestoreSqlUtil.preparingLine = "";
+    RestoreSqlUtil.parametersLine = "";
+    RestoreSqlUtil.isEnd = false;
+    RestoreSqlUtil.indexNum = 1;
+    RestoreSqlUtil["__class"] = "RestoreSqlUtil";
+    RestoreSqlUtil.needAssembledType_$LI$();
+    RestoreSqlUtil.__static_initialize();
+
+</script>
+
+</html>

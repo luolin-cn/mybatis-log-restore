@@ -1,0 +1,28 @@
+.keyword {
+    color: #3faefa;
+    font-weight: bold;
+}
+.out_div:empty:before{
+    content: attr(placeholder);
+    color:#e2e6f1;
+    font-family: 'Microsoft YaHei';
+    font-size: inherit;
+}
+.out_div:focus:before {
+    content: none;
+}
+.out_div {
+    display: block;
+    border: 2px solid #b8d7f8;
+    border-radius: 5px 5px 5px 5px;
+    width: 96%;
+    min-height: 300px;
+    max-height: 520px;
+    font-size: 14px;
+    font-family: 'Microsoft YaHei';
+    padding-top: 14px;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-bottom: 14px;
+    overflow-y:auto;
+}
